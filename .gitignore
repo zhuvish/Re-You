@@ -1,0 +1,14 @@
+# Do not commit cloned repos
+data/repo/
+
+# Do not commit language grammars or vendor repos
+extraction/tree-sitter-javascript/
+**/tree-sitter*/
+**/tree_sitter*/
+
+
+# Other ignores
+vector_store/
+venv/
+__pycache__/
+.env
