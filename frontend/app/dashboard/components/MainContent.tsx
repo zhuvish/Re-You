@@ -1,9 +1,20 @@
-import { User as UserIcon, Send, Loader2, BookOpen, History } from "lucide-react"
+"use client"
+
+import { User as UserIcon, Send, Loader2, BookOpen, History, Plus, FolderOpen } from "lucide-react"
 
 type Message = {
   role: "user" | "assistant"
   content: string
   timestamp?: Date
+}
+
+type Repository = {
+  id: number
+  github_repo_id: number
+  name: string
+  full_name: string
+  indexed: boolean
+  last_indexed?: string
 }
 
 type TabId = "chat" | "repos" | "history"
@@ -19,6 +30,8 @@ interface MainContentProps {
   messagesEndRef: React.RefObject<HTMLDivElement>
   inputRef: React.RefObject<HTMLInputElement>
   formatTime: (d?: Date) => string
+  userRepositories: Repository[]
+  setShowRepoSetup: (show: boolean) => void
 }
 
 export default function MainContent({
@@ -31,7 +44,9 @@ export default function MainContent({
   handleSend,
   messagesEndRef,
   inputRef,
-  formatTime
+  formatTime,
+  userRepositories,
+  setShowRepoSetup
 }: MainContentProps) {
   const sendOnEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -73,7 +88,7 @@ export default function MainContent({
       </div>
 
       {/* Content area */}
-      <div className="flex-1">
+      <div className="flex-1 overflow-auto">
         {activeTab === "chat" && (
           <div className="flex flex-col h-full">
             {/* Messages */}
@@ -103,7 +118,7 @@ export default function MainContent({
                           onClick={() => setInput(ex)}
                           className="w-full text-left px-4 py-3 rounded-lg bg-slate-900/70 border border-slate-800 hover:border-cyan-500/40 transition"
                         >
-                          “{ex}”
+                          "{ex}"
                         </button>
                       ))}
                     </div>
@@ -193,12 +208,61 @@ export default function MainContent({
         )}
 
         {activeTab === "repos" && (
-          <div className="h-full p-8 text-sm text-slate-300">
-            <h2 className="text-xl font-semibold mb-4">Repositories</h2>
-            <p className="text-slate-400">
-              This section will show your real GitHub repositories, indexing status, and
-              allow you to select which repos are included in DevMemory.
-            </p>
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-semibold mb-2">Your Repositories</h2>
+                <p className="text-slate-400">
+                  Manage which repositories are indexed and available for chat.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowRepoSetup(true)}
+                className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg hover:from-cyan-400 hover:to-blue-400 flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Add More Repositories
+              </button>
+            </div>
+            
+            {userRepositories.length === 0 ? (
+              <div className="text-center py-12 border border-slate-800 rounded-lg">
+                <FolderOpen className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">No repositories selected</h3>
+                <p className="text-slate-400 mb-6">
+                  You haven't selected any repositories to index yet.
+                </p>
+                <button
+                  onClick={() => setShowRepoSetup(true)}
+                  className="px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400"
+                >
+                  Select Repositories
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {userRepositories.map(repo => (
+                  <div key={repo.id} className="border border-slate-800 rounded-lg p-4 hover:border-slate-700 transition">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h3 className="font-medium">{repo.full_name}</h3>
+                        <div className="flex items-center gap-4 mt-2">
+                          <span className={`text-sm ${repo.indexed ? 'text-green-400' : 'text-yellow-400'}`}>
+                            {repo.indexed ? '✓ Indexed' : '⏳ Indexing...'}
+                          </span>
+                          <span className="text-sm text-slate-400">
+                            Last updated: {repo.last_indexed || 'Never'}
+                          </span>
+                        </div>
+                      </div>
+                      <button className="text-red-400 hover:text-red-300 text-sm">
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -208,7 +272,7 @@ export default function MainContent({
               <History className="w-10 h-10 mx-auto mb-4 text-slate-600" />
               <p className="font-medium mb-2">Chat history coming soon</p>
               <p className="text-slate-500 mb-4">
-                You&apos;ll be able to revisit old conversations and pin important answers here.
+                You'll be able to revisit old conversations and pin important answers here.
               </p>
               <button
                 onClick={() => setActiveTab("chat")}

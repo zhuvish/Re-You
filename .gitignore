@@ -11,4 +11,4 @@ extraction/tree-sitter-javascript/
 vector_store/
 venv/
 __pycache__/
-.env
+backend/.env

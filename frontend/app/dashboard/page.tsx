@@ -3,11 +3,22 @@
 import { useEffect, useState, useRef } from "react"
 import Sidebar from "./components/Sidebar"
 import MainContent from "./components/MainContent"
+import SetupModal from "./components/SetupModal"
 
-type MeResponse = {
+type User = {
   id: number
   username: string
   avatar: string
+  needs_setup: boolean
+}
+
+type Repository = {
+  id: number
+  github_repo_id: number
+  name: string
+  full_name: string
+  indexed: boolean
+  last_indexed?: string
 }
 
 type Message = {
@@ -19,9 +30,11 @@ type Message = {
 type TabId = "chat" | "repos" | "history"
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<MeResponse | null>(null)
+  const [user, setUser] = useState<User | null>(null)
+  const [userRepositories, setUserRepositories] = useState<Repository[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showRepoSetup, setShowRepoSetup] = useState(false)
 
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
@@ -63,9 +76,18 @@ export default function DashboardPage() {
           throw new Error(`Failed to load user: HTTP ${res.status}`)
         }
 
-        const data: MeResponse = await res.json()
+        const data = await res.json()
         setUser(data)
         setError(null)
+        
+        // Check if user has repositories data
+        if (data.repositories) {
+          setUserRepositories(data.repositories)
+        }
+        
+        if (data.needs_setup) {
+          setShowRepoSetup(true)
+        }
 
         setMessages([
           {
@@ -83,6 +105,30 @@ export default function DashboardPage() {
     })()
   }, [])
 
+  const refreshUserData = async () => {
+    const token = localStorage.getItem("devmemory_token")
+    if (!token) return
+
+    try {
+      const res = await fetch("http://localhost:8000/me", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setUser(data)
+        if (data.repositories) {
+          setUserRepositories(data.repositories)
+        }
+      }
+    } catch (err) {
+      console.error("Failed to refresh user data:", err)
+    }
+  }
+
   // Scroll to bottom on new messages
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -97,7 +143,6 @@ export default function DashboardPage() {
     }
   }, [loading, error])
 
-  // ---- Handlers ----
   const handleSend = async () => {
     if (!input.trim() || isSending) return
 
@@ -144,7 +189,6 @@ export default function DashboardPage() {
   const formatTime = (date?: Date) =>
     date ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""
 
-  // ---- Loading / Error states ----
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -188,9 +232,13 @@ export default function DashboardPage() {
     )
   }
 
-  // ---- Main UI ----
   return (
     <main className="min-h-screen bg-black text-slate-100">
+      <SetupModal
+        isOpen={showRepoSetup}
+        onClose={() => setShowRepoSetup(false)}
+        onSuccess={refreshUserData}
+      />
       <div className="flex h-screen">
         <Sidebar
           user={user}
@@ -198,6 +246,7 @@ export default function DashboardPage() {
           setActiveTab={setActiveTab}
           startNewChat={startNewChat}
           logout={logout}
+          openRepoManagement={() => setShowRepoSetup(true)}
         />
         
         <MainContent
@@ -211,6 +260,8 @@ export default function DashboardPage() {
           messagesEndRef={messagesEndRef}
           inputRef={inputRef}
           formatTime={formatTime}
+          userRepositories={userRepositories}
+          setShowRepoSetup={setShowRepoSetup}
         />
       </div>
     </main>
