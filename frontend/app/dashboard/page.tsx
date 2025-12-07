@@ -1,6 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
+import Sidebar from "./components/Sidebar"
+import MainContent from "./components/MainContent"
 
 type MeResponse = {
   id: number
@@ -8,72 +10,209 @@ type MeResponse = {
   avatar: string
 }
 
+type Message = {
+  role: "user" | "assistant"
+  content: string
+  timestamp?: Date
+}
+
+type TabId = "chat" | "repos" | "history"
+
 export default function DashboardPage() {
   const [user, setUser] = useState<MeResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState("")
+  const [isSending, setIsSending] = useState(false)
+
+  const [activeTab, setActiveTab] = useState<TabId>("chat")
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+
+  // ---- Fetch /me on mount ----
   useEffect(() => {
-    const token = localStorage.getItem("devmemory_token")
+    const token = typeof window !== "undefined"
+      ? localStorage.getItem("devmemory_token")
+      : null
 
-    console.log("Full token:", token)
-    console.log("Token length:", token?.length)
-
-    // Test the token manually
-  if (token) {
-    fetch(`http://localhost:8000/debug/token?token=${token}`)
-      .then(res => res.json())
-      .then(data => console.log("Token debug:", data))
-  }
-  
     if (!token) {
-      setError("No token found in localStorage")
+      setError("No session found. Please login again.")
       setLoading(false)
       return
     }
 
-    console.log("Token found:", token.substring(0, 20) + "...") // Log first 20 chars
+    ;(async () => {
+      try {
+        const res = await fetch("http://localhost:8000/me", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        })
 
-    fetch("http://localhost:8000/me", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    })
-      .then(async (res) => {
-        console.log("Response status:", res.status)
-        if (!res.ok) {
-          const errorText = await res.text()
-          throw new Error(`HTTP ${res.status}: ${errorText}`)
+        if (res.status === 401) {
+          localStorage.removeItem("devmemory_token")
+          window.location.href = "/"
+          return
         }
-        return res.json()
-      })
-      .then(data => {
-        console.log("User data:", data)
+
+        if (!res.ok) {
+          throw new Error(`Failed to load user: HTTP ${res.status}`)
+        }
+
+        const data: MeResponse = await res.json()
         setUser(data)
         setError(null)
-      })
-      .catch(err => {
-        console.error("Fetch error:", err)
-        setError(err.message)
-      })
-      .finally(() => {
+
+        setMessages([
+          {
+            role: "assistant",
+            content: `Welcome, ${data.username}! I'm your DevMemory assistant. Ask me anything about your code.`,
+            timestamp: new Date(),
+          },
+        ])
+      } catch (err: any) {
+        console.error(err)
+        setError(err.message || "Failed to load dashboard")
+      } finally {
         setLoading(false)
-      })
+      }
+    })()
   }, [])
 
-  if (loading) return <p>Loading...</p>
-  if (error) return <p>Error: {error}</p>
-  if (!user) return <p>No user data</p>
+  // Scroll to bottom on new messages
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+    }
+  }, [messages])
 
+  // Focus input when ready
+  useEffect(() => {
+    if (!loading && !error) {
+      inputRef.current?.focus()
+    }
+  }, [loading, error])
+
+  // ---- Handlers ----
+  const handleSend = async () => {
+    if (!input.trim() || isSending) return
+
+    const text = input.trim()
+    const userMessage: Message = {
+      role: "user",
+      content: text,
+      timestamp: new Date(),
+    }
+
+    setMessages((prev) => [...prev, userMessage])
+    setInput("")
+    setIsSending(true)
+
+    setTimeout(() => {
+      const reply: Message = {
+        role: "assistant",
+        content: `I would now search across your indexed repositories for: "${text}". In the final version, you'd see code snippets, file paths, and commit history here.`,
+        timestamp: new Date(),
+      }
+      setMessages((prev) => [...prev, reply])
+      setIsSending(false)
+    }, 800)
+  }
+
+  const startNewChat = () => {
+    if (!user) return
+    setMessages([
+      {
+        role: "assistant",
+        content: `New chat started. What do you want to explore in your code today, ${user.username}?`,
+        timestamp: new Date(),
+      },
+    ])
+  }
+
+  const logout = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("devmemory_token")
+      window.location.href = "/"
+    }
+  }
+
+  const formatTime = (date?: Date) =>
+    date ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""
+
+  // ---- Loading / Error states ----
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="relative">
+            <div className="absolute w-40 h-40 bg-gradient-to-br from-cyan-400/20 to-blue-500/20 blur-2xl rounded-full" />
+            <div className="relative z-10 flex flex-col items-center gap-2">
+              <img
+                src="/brain-1.png"
+                alt="DevMemory"
+                width={60}
+                height={60}
+                className="animate-pulse"
+              />
+              <p className="text-slate-300 font-medium">Loading your dashboard…</p>
+            </div>
+          </div>
+          <div className="w-6 h-6 animate-spin text-cyan-400 mx-auto border-2 border-cyan-400 border-t-transparent rounded-full" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !user) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="max-w-md p-8 rounded-xl border border-slate-800 bg-black text-center">
+          <div className="w-10 h-10 text-red-500 mx-auto mb-4">⚠️</div>
+          <h2 className="text-xl font-semibold text-slate-100 mb-2">
+            Couldn&apos;t load dashboard
+          </h2>
+          <p className="text-slate-400 mb-6 text-sm">{error || "Unknown error"}</p>
+          <button
+            onClick={() => (window.location.href = "/")}
+            className="px-5 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg text-sm font-medium hover:from-cyan-400 hover:to-blue-400 transition"
+          >
+            Go back to home
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ---- Main UI ----
   return (
-    <main className="p-8">
-      <h1 className="text-2xl font-semibold mb-4">Welcome, {user.username}</h1>
-      <img
-        src={user.avatar}
-        alt={user.username}
-        className="w-16 h-16 rounded-full"
-      />
+    <main className="min-h-screen bg-black text-slate-100">
+      <div className="flex h-screen">
+        <Sidebar
+          user={user}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          startNewChat={startNewChat}
+          logout={logout}
+        />
+        
+        <MainContent
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          messages={messages}
+          input={input}
+          setInput={setInput}
+          isSending={isSending}
+          handleSend={handleSend}
+          messagesEndRef={messagesEndRef}
+          inputRef={inputRef}
+          formatTime={formatTime}
+        />
+      </div>
     </main>
   )
 }
