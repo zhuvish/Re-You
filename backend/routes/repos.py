@@ -1,12 +1,16 @@
-from fastapi import APIRouter, Depends
-from auth.jwt import get_current_user
 import requests
-from repositories.service import save_selected_repos
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from auth.jwt import get_current_user
 from database import get_db
-from fastapi import Depends
+from repositories.service import toggle_repository_selection
 from repositories.model import Repository
 
 router = APIRouter(prefix="/repos", tags=["repos"])
+
+class RepoToggleRequest(BaseModel):
+    repository_id: int
+    selected: bool
 
 @router.get("/github")
 def list_github_repos(user = Depends(get_current_user)):
@@ -48,3 +52,27 @@ def select_repos(
     db.commit()
     return {"status": "ok"}
 
+@router.post("/toggle")
+def toggle_repo(
+    payload: RepoToggleRequest,
+    user = Depends(get_current_user),
+    db = Depends(get_db),
+):
+    repo = toggle_repository_selection(
+        db=db,
+        user_id=user.id,
+        repository_id=payload.repository_id,
+        selected=payload.selected,
+    )
+
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    # (later) trigger indexing here if selected=True
+
+    return {
+        "id": repo.id,
+        "selected": repo.selected,
+        "indexed": repo.indexed,
+        "full_name": repo.full_name,
+    }

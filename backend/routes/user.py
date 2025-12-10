@@ -28,6 +28,7 @@ def get_user(user=Depends(get_current_user), db=Depends(get_db)):
                 "name": repo.name,
                 "full_name": repo.full_name,
                 "indexed": repo.indexed,
+                "selected": repo.selected,
                 "last_indexed": None  # Add this field to your model if needed
             }
             for repo in repos

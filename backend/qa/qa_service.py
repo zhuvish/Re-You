@@ -53,7 +53,7 @@ def answer_question(question: str, user, db: Session):
     # 1️⃣ Find user-selected repositories
     repos = db.query(Repository).filter(
         Repository.user_id == user.id,
-        Repository.selected == True
+        Repository.selected == True,
     ).all()
 
     if not repos:
