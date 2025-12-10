@@ -160,7 +160,7 @@ export default function MainContent({
                           }`}
                         >
                           {/* {msg.content} */}
-                          <MarkdownMessage content={msg.content} />
+                          <MarkdownMessage content={msg.content} theme="light" />
                         </div>
                         {msg.timestamp && (
                           <p className="text-[10px] text-slate-500 mt-1 px-1">
