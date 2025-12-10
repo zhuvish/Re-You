@@ -24,6 +24,7 @@ type Repository = {
   full_name: string;
   indexed: boolean;
   last_indexed?: string;
+  selected: boolean
 };
 
 type TabId = "chat" | "repos" | "history";
@@ -40,6 +41,7 @@ interface MainContentProps {
   inputRef: React.RefObject<HTMLInputElement>;
   formatTime: (d?: Date) => string;
   userRepositories: Repository[];
+  toggleRepoSelection: (repo: Repository) => void;
   setShowRepoSetup: (show: boolean) => void;
 }
 
@@ -55,6 +57,7 @@ export default function MainContent({
   inputRef,
   formatTime,
   userRepositories,
+  toggleRepoSelection,
   setShowRepoSetup,
 }: MainContentProps) {
   const sendOnEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -248,13 +251,61 @@ export default function MainContent({
           </div>
         )}
 
-        {/* other tabs remain unchanged… */}
-
         {activeTab === "repos" && (
-          <div className="p-6">
-            {/* unchanged… */}
+          <div className="p-8 space-y-4">
+            <h2 className="text-xl font-semibold mb-4">Your Repositories</h2>
+
+            {userRepositories.length === 0 ? (
+              <p className="text-slate-400 text-sm">No repositories connected.</p>
+            ) : (
+              <div className="grid gap-4">
+                {userRepositories.map((repo) => (
+                  <div
+                    key={repo.id}
+                    className={`p-4 rounded-xl border transition flex items-center justify-between
+                      ${
+                        repo.selected
+                          ? "border-green-500/60 bg-green-500/5"
+                          : "border-slate-800 bg-slate-900/60"
+                      }
+                    `}
+                  >
+                    {/* Repo info */}
+                    <div>
+                      <h3 className="font-medium">{repo.name}</h3>
+                      <p className="text-xs text-slate-400">{repo.full_name}</p>
+
+                      <div className="mt-2">
+                        {repo.indexed ? (
+                          <span className="text-xs text-green-400">Indexed ✅</span>
+                        ) : (
+                          <span className="text-xs text-yellow-400">
+                            Not indexed / Indexing…
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action button */}
+                    <button
+                      onClick={() => toggleRepoSelection(repo)}
+                      className={`px-4 py-2 text-xs rounded-lg font-medium transition
+                        ${
+                          repo.selected
+                            ? "bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                            : "bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20"
+                        }
+                      `}
+                    >
+                      {repo.selected ? "Remove" : "Add"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
+
 
         {activeTab === "history" && (
           <div className="h-full p-8 flex items-center justify-center text-center text-sm text-slate-300">

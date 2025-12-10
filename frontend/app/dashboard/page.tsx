@@ -19,6 +19,7 @@ type Repository = {
   full_name: string
   indexed: boolean
   last_indexed?: string
+  selected: boolean
 }
 
 type Message = {
@@ -129,6 +130,20 @@ export default function DashboardPage() {
     }
   }
 
+  const hasIndexingInProgress = userRepositories.some(
+    (r) => r.selected && !r.indexed
+  );
+
+  useEffect(() => {
+    if (!hasIndexingInProgress) return;
+
+    const interval = setInterval(() => {
+      refreshUserData();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [hasIndexingInProgress]);
+
   // Scroll to bottom on new messages
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -142,31 +157,6 @@ export default function DashboardPage() {
       inputRef.current?.focus()
     }
   }, [loading, error])
-
-  // const handleSend = async () => {
-  //   if (!input.trim() || isSending) return
-
-  //   const text = input.trim()
-  //   const userMessage: Message = {
-  //     role: "user",
-  //     content: text,
-  //     timestamp: new Date(),
-  //   }
-
-  //   setMessages((prev) => [...prev, userMessage])
-  //   setInput("")
-  //   setIsSending(true)
-
-  //   setTimeout(() => {
-  //     const reply: Message = {
-  //       role: "assistant",
-  //       content: `I would now search across your indexed repositories for: "${text}". In the final version, you'd see code snippets, file paths, and commit history here.`,
-  //       timestamp: new Date(),
-  //     }
-  //     setMessages((prev) => [...prev, reply])
-  //     setIsSending(false)
-  //   }, 800)
-  // }
 
   const handleSend = async () => {
     if (!input.trim() || isSending) return;
@@ -244,6 +234,37 @@ export default function DashboardPage() {
   const formatTime = (date?: Date) =>
     date ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""
 
+  const toggleRepoSelection = async (repo: Repository) => {
+  const token = localStorage.getItem("devmemory_token");
+  if (!token) return;
+
+  try {
+    // optimistic UI update
+    setUserRepositories((prev) =>
+      prev.map((r) =>
+        r.id === repo.id ? { ...r, selected: !r.selected } : r
+      )
+    );
+
+    await fetch("http://localhost:8000/repos/toggle", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        repository_id: repo.id,
+        selected: !repo.selected,
+      }),
+    });
+
+  } catch (err) {
+    console.error("Failed to toggle repo", err);
+    // optional rollback here
+  }
+};
+
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -317,6 +338,7 @@ export default function DashboardPage() {
           formatTime={formatTime}
           userRepositories={userRepositories}
           setShowRepoSetup={setShowRepoSetup}
+          toggleRepoSelection={toggleRepoSelection}
         />
       </div>
     </main>
